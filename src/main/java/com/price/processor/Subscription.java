@@ -1,6 +1,9 @@
 package com.price.processor;
 
+import com.price.processor.model.Price;
+
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -10,13 +13,14 @@ class Subscription {
 
     private final Lock lock = new ReentrantLock();
     private final Condition notEmpty = lock.newCondition();
-    private boolean isCanceled = false;
+    private final AtomicBoolean isCanceled = new AtomicBoolean(false);
 
     public void put(String ccyPair, double rate) {
+
         lock.lock();
         try {
             setDataToProcess(ccyPair, rate);
-            notEmpty.signalAll();
+            notEmpty.signal();
         } finally {
             lock.unlock();
         }
@@ -28,17 +32,16 @@ class Subscription {
 
         lock.lock();
         try {
-
-            while (!isCanceled && !isDataReady())
+            while (!isCanceled.get() && !isDataReady())
                 notEmpty.await();
 
-            if (!isCanceled) {
+            if (!isCanceled.get()) {
                 ret = prices.values()
                         .stream()
                         .filter(x -> x.isProcessed() == false)
                         .findAny()
                         .get();
-
+//TODO: consider with empty stream
                 ret = getDataToProcess(ret.getCcyPair());
             }
 
@@ -51,11 +54,12 @@ class Subscription {
         return ret;
     }
 
+    //TODO: consider to remove
     public void cancel() {
         lock.lock();
         try {
-            isCanceled = true;
-            notEmpty.signalAll();
+            isCanceled.getAndSet(true);
+            notEmpty.signal();
         } finally {
             lock.unlock();
         }
@@ -85,7 +89,7 @@ class Subscription {
     private boolean isDataReady() {
         var ret = prices.values()
                 .stream()
-                .filter(x -> x.isProcessed() == false)
+                .filter(x -> !x.isProcessed())
                 .findAny();
         return ret.isPresent();
     }

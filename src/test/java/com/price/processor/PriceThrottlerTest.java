@@ -1,8 +1,9 @@
 package com.price.processor;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,11 @@ public class PriceThrottlerTest {
 
         // Act
         throttler.onPrice("EURUSD", 6.28);
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         throttler.unsubscribe(firstListener);
 
         // Assert

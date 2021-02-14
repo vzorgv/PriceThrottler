@@ -1,8 +1,8 @@
-package com.price.processor;
+package com.price.processor.model;
 
-class Price {
+public class Price {
 
-    private String ccyPair;
+    private final String ccyPair;
     private double rate;
     private boolean isProcessed;
 
