@@ -1,6 +1,7 @@
-package com.price.processor;
+package com.price.processor.throttler;
 
-import java.util.HashMap;
+import com.price.processor.PriceProcessor;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 

@@ -1,6 +1,4 @@
-package com.price.processor;
-
-import com.price.processor.model.Price;
+package com.price.processor.throttler;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -8,8 +6,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-class Subscription {
-    private final ConcurrentHashMap<String, Price> prices = new ConcurrentHashMap<>();
+class TaskDataBuffer {
+    private final ConcurrentHashMap<String, TaskData> prices = new ConcurrentHashMap<>();
 
     private final Lock lock = new ReentrantLock();
     private final Condition notEmpty = lock.newCondition();
@@ -26,22 +24,22 @@ class Subscription {
         }
     }
 
-    public Price take() {
+    public TaskData take() {
 
-        Price ret = null;
+        TaskData ret = null;
 
         lock.lock();
         try {
-            while (!isCanceled.get() && !isDataReady())
+            while (!isCanceled.getAcquire() && !isDataReady())
                 notEmpty.await();
 
-            if (!isCanceled.get()) {
+            if (!isCanceled.getAcquire()) {
                 ret = prices.values()
                         .stream()
-                        .filter(x -> x.isProcessed() == false)
+                        .filter(x -> !x.isProcessed())
                         .findAny()
                         .get();
-//TODO: consider with empty stream
+//TODO: consider case with empty stream
                 ret = getDataToProcess(ret.getCcyPair());
             }
 
@@ -58,7 +56,7 @@ class Subscription {
     public void cancel() {
         lock.lock();
         try {
-            isCanceled.getAndSet(true);
+            isCanceled.setRelease(true);
             notEmpty.signal();
         } finally {
             lock.unlock();
@@ -69,7 +67,7 @@ class Subscription {
 
         prices.compute(ccyPair, (key, val) -> {
             if (val == null) {
-                val = new Price(ccyPair, rate);
+                val = new TaskData(ccyPair, rate);
             } else {
                 val.setProcessed(false);
                 val.setRate(rate);
@@ -78,7 +76,7 @@ class Subscription {
         });
     }
 
-    private Price getDataToProcess(String ccyPair) {
+    private TaskData getDataToProcess(String ccyPair) {
 
         return prices.computeIfPresent(ccyPair, (key, val) -> {
                 val.setProcessed(true);
