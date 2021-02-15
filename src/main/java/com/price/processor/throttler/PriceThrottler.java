@@ -1,5 +1,6 @@
 package com.price.processor.throttler;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -10,42 +11,42 @@ import org.apache.logging.log4j.Logger;
 public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
     private final static Logger logger = LogManager.getLogger(PriceThrottler.class);
+    public final static String TERMINATION_MESSAGE_ID = UUID.randomUUID().toString();
 
     private final ConcurrentHashMap<PriceProcessor, CompletableFuture<Void>> tasks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<PriceProcessor, CurrencyPriceQueue> taskQueues = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PriceProcessor, CurrencyPairPriceQueue> taskQueues = new ConcurrentHashMap<>();
 
     @Override
     public void onPrice(String ccyPair, double rate) {
 
-        for (var subscription: taskQueues.values()) {
-            subscription.offer(new TaskData(ccyPair, rate));
+        for (var queue: taskQueues.values()) {
+            queue.offer(new CurrencyPairPrice(ccyPair, rate));
         }
     }
 
     @Override
     public void subscribe(PriceProcessor priceProcessor) {
-        var priceQueue = new CurrencyPriceQueue();
+        var priceQueue = new CurrencyPairPriceQueue();
         taskQueues.put(priceProcessor, priceQueue);
         tasks.put(priceProcessor, createTask(priceProcessor, priceQueue));
+        logger.info(priceProcessor.toString() + " subscribed");
     }
 
     @Override
     public void  unsubscribe(PriceProcessor priceProcessor) {
         var queue = taskQueues.get(priceProcessor);
 
-        if (queue != null) {
-            taskQueues.remove(priceProcessor);
-            try {
-                queue.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            logger.info(priceProcessor.toString() + " unsubscribed");
-        }
+        taskQueues.remove(priceProcessor);
+
+        var terminationMsg = createTerminationMessage();
+        queue.offer(terminationMsg);
+
+        logger.info(priceProcessor.toString() + " unsubscribed");
+
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
 
         for (var processor: tasks.keySet()) {
             unsubscribe(processor);
@@ -56,47 +57,40 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
         }
     }
 
-    private Runnable createJob(PriceProcessor processor, CurrencyPriceQueue queue) {
+    private static CurrencyPairPrice createTerminationMessage() {
+        return new CurrencyPairPrice(TERMINATION_MESSAGE_ID, 0.0);
+    }
+
+    private static boolean isTerminationMsg(CurrencyPairPrice pairPrice) {
+        return pairPrice != null && pairPrice.getCcyPair().equals(TERMINATION_MESSAGE_ID);
+    }
+
+    private Runnable createJob(PriceProcessor processor, CurrencyPairPriceQueue queue) {
         return () -> {
             var running = true;
             do {
-                logger.info("Job for " + processor + " awaiting");
-                var event = queue.take();
+                CurrencyPairPrice pairPrice = null;
+                try {
+                    pairPrice = queue.take();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
 
-                if (CurrencyPriceQueue.TERMINATION_EVENT_ID.equals(event.getCcyPair())) {
-                    running = false;
-                    logger.info(String.format("Job for processor %s finalized", processor.toString()));
-                } else {
-                    processor.onPrice(event.getCcyPair(), event.getRate());
-                    String infoMsg = String.format("Pair %s with price %f processed in processor %s", event.getCcyPair(), event.getRate(), processor.toString());
-                    logger.info(infoMsg);
+                if (pairPrice != null) {
+                    if (isTerminationMsg(pairPrice)) {
+                        running = false;
+                        logger.info(String.format("Job for processor %s finalized", processor));
+                    } else {
+                        processor.onPrice(pairPrice.getCcyPair(), pairPrice.getRate());
+                        String infoMsg = String.format("Pair %s with price %f processed in processor %s", pairPrice.getCcyPair(), pairPrice.getRate(), processor);
+                        logger.info(infoMsg);
+                    }
                 }
             } while(running);
         };
     }
 
-
-    //TODO: obsolete
-    private Runnable DEL_createJob(PriceProcessor processor, CurrencyPriceQueue data) {
-        return () -> {
-            var running = true;
-            while (running) {
-                logger.info("Job for " + processor + " awaiting");
-                var price = data.take();
-
-                if (price == null) {
-                    logger.info("Job for " + processor + " exiting");
-                    running = false;
-                } else {
-                    processor.onPrice(price.getCcyPair(), price.getRate());
-                    String infoMsg = String.format("Pair %s with price %f processed in processor %s", price.getCcyPair(), price.getRate(), processor.toString());
-                    logger.info(infoMsg);
-                }
-            }
-        };
-    }
-
-    private CompletableFuture<Void> createTask(PriceProcessor processor, CurrencyPriceQueue data) {
+    private CompletableFuture<Void> createTask(PriceProcessor processor, CurrencyPairPriceQueue data) {
 
         var runnable = this.createJob(processor, data);
         return CompletableFuture.runAsync(runnable);

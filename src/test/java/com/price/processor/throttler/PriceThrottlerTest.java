@@ -1,6 +1,7 @@
 package com.price.processor.throttler;
 
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
@@ -10,7 +11,7 @@ import java.util.HashMap;
 
 public class PriceThrottlerTest {
 
-    private static final long THREAD_POOL_WARMUP_DELAY = 100;
+    private final static long THREAD_POOL_WARMUP = 100;
 
     @Test
     @DisplayName("When price come then distributed to the listener")
@@ -29,14 +30,14 @@ public class PriceThrottlerTest {
         throttler.onPrice("EURUSD", 6.28);
 
         try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
+            Thread.sleep(THREAD_POOL_WARMUP);
             throttler.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // Assert
-        assertTrue(prices.equals(listener.getProcessedPrices()));
+        assertEquals(listener.getProcessedPrices(), prices);
     }
 
     @Test
@@ -56,30 +57,22 @@ public class PriceThrottlerTest {
         throttler.subscribe(firstListener);
         throttler.subscribe(secondListener);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         // Act
-        var it = prices.entrySet().iterator();
 
-        while (it.hasNext()) {
-            var price = it.next();
+        for (var price : prices.entrySet()) {
             throttler.onPrice(price.getKey(), price.getValue());
         }
 
         try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
+            Thread.sleep(THREAD_POOL_WARMUP);
             throttler.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // Assert
-        assertTrue(prices.equals(firstListener.getProcessedPrices()), "First listener assertion");
-        assertTrue(prices.equals(secondListener.getProcessedPrices()), "Second listener assertion");
+        assertEquals(firstListener.getProcessedPrices(), prices, "First listener assertion");
+        assertEquals(secondListener.getProcessedPrices(), prices, "Second listener assertion");
     }
 
 
@@ -96,26 +89,20 @@ public class PriceThrottlerTest {
 
         throttler.subscribe(slowListener);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         // Act
         throttler.onPrice("EURUSD", 6.28);
         throttler.onPrice("EURUSD", 7.28);
         throttler.onPrice("EURUSD", 8.28);
 
         try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
+            Thread.sleep(THREAD_POOL_WARMUP);
             throttler.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // Assert
-        assertTrue(prices.equals(slowListener.getProcessedPrices()));
+        assertEquals(slowListener.getProcessedPrices(), prices);
     }
 
     @Test
@@ -133,12 +120,6 @@ public class PriceThrottlerTest {
 
         throttler.subscribe(listener);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         // Act
         throttler.onPrice("EURUSD", 0.28);
         throttler.onPrice("EURUSD", 1.28);
@@ -153,14 +134,14 @@ public class PriceThrottlerTest {
         throttler.onPrice("EURRUB", 11.0);
 
         try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
+            Thread.sleep(THREAD_POOL_WARMUP);
             throttler.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // Assert
-        assertTrue(prices.equals(listener.getProcessedPrices()));
+        assertEquals(listener.getProcessedPrices(), prices);
     }
 
     @Test
@@ -181,22 +162,14 @@ public class PriceThrottlerTest {
         throttler.subscribe(fastListener);
         throttler.subscribe(slowListener);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         // Act
-        var it = prices.entrySet().iterator();
 
-        while (it.hasNext()) {
-            var price = it.next();
+        for (var price : prices.entrySet()) {
             throttler.onPrice(price.getKey(), price.getValue());
         }
 
         try {
-            Thread.sleep(THREAD_POOL_WARMUP_DELAY);
+            Thread.sleep(THREAD_POOL_WARMUP);
             throttler.close();
         } catch (Exception e) {
             e.printStackTrace();

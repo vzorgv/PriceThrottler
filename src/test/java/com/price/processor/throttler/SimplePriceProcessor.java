@@ -5,16 +5,27 @@ import com.price.processor.PriceProcessor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-class SimplePriceProcessor implements PriceProcessor {
+
+/**
+ *  PriceProcessor implementation for testing purpose
+ */
+final class SimplePriceProcessor implements PriceProcessor {
 
     private final long sleepInMilli;
 
     private final ConcurrentHashMap<String, Double> processedPrices = new ConcurrentHashMap<>();
 
+    /**
+     * @param pauseInProcessingInMilliseconds defines the delay in milliseconds to process request
+     */
     public SimplePriceProcessor(long pauseInProcessingInMilliseconds) {
         sleepInMilli = pauseInProcessingInMilliseconds;
     }
 
+    /**
+     * Constructs <c>SimplePriceProcessor</c> with zero delay
+     * @return the <c>SimplePriceProcessor</c> instance
+     */
     public static SimplePriceProcessor constructWithoutDelayInProcessing() {
         return new SimplePriceProcessor(0);
     }
