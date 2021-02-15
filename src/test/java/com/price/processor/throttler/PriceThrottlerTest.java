@@ -8,21 +8,22 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 
-public class TaskDataThrottlerTest {
+public class PriceThrottlerTest {
 
     private static final long THREAD_POOL_WARMUP_DELAY = 100;
 
     @Test
+    @DisplayName("When price come then distributed to the listener")
     public void eventShouldBeDistributedToListener() {
         // Arrange
         var prices = new HashMap<String, Double>();
 
         prices.put("EURUSD", 6.28);
 
-        var firstListener = SimplePriceProcessor.constructWithoutDelayInProcessing();
+        var listener = SimplePriceProcessor.constructWithoutDelayInProcessing();
         var throttler = new PriceThrottler();
 
-        throttler.subscribe(firstListener);
+        throttler.subscribe(listener);
 
         // Act
         throttler.onPrice("EURUSD", 6.28);
@@ -35,7 +36,7 @@ public class TaskDataThrottlerTest {
         }
 
         // Assert
-        assertTrue(prices.equals(firstListener.getProcessedPrices()));
+        assertTrue(prices.equals(listener.getProcessedPrices()));
     }
 
     @Test
@@ -90,10 +91,10 @@ public class TaskDataThrottlerTest {
 
         prices.put("EURUSD", 8.28);
 
-        var firstListener = new SimplePriceProcessor(10);
+        var slowListener = new SimplePriceProcessor(10);
         var throttler = new PriceThrottler();
 
-        throttler.subscribe(firstListener);
+        throttler.subscribe(slowListener);
 
         try {
             Thread.sleep(THREAD_POOL_WARMUP_DELAY);
@@ -114,7 +115,7 @@ public class TaskDataThrottlerTest {
         }
 
         // Assert
-        assertTrue(prices.equals(firstListener.getProcessedPrices()));
+        assertTrue(prices.equals(slowListener.getProcessedPrices()));
     }
 
     @Test
@@ -127,10 +128,10 @@ public class TaskDataThrottlerTest {
         prices.put("EURUSD", 8.28);
         prices.put("EURRUB", 11.0);
 
-        var firstListener = SimplePriceProcessor.constructWithoutDelayInProcessing();
+        var listener = SimplePriceProcessor.constructWithoutDelayInProcessing();
         var throttler = new PriceThrottler();
 
-        throttler.subscribe(firstListener);
+        throttler.subscribe(listener);
 
         try {
             Thread.sleep(THREAD_POOL_WARMUP_DELAY);
@@ -159,7 +160,7 @@ public class TaskDataThrottlerTest {
         }
 
         // Assert
-        assertTrue(prices.equals(firstListener.getProcessedPrices()));
+        assertTrue(prices.equals(listener.getProcessedPrices()));
     }
 
     @Test

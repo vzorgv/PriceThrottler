@@ -26,6 +26,8 @@ class CurrencyPriceQueue implements AutoCloseable {
     private final AtomicBoolean isCanceled = new AtomicBoolean(false);
 
 
+
+
     private final static int EVENT_QUEUE_CAPACITY = 1;
     //TODO: extract termination event
     public final static String TERMINATION_EVENT_ID = UUID.randomUUID().toString();
@@ -94,7 +96,13 @@ class CurrencyPriceQueue implements AutoCloseable {
             try {
                 boolean running = true;
                 do {
-                    var event = watcherQueue.take();
+                    TaskData event;
+
+                    if (bufferedEvents.isEmpty()) {
+                        event = watcherQueue.take();
+                    } else {
+                        event = watcherQueue.poll();
+                    }
 
                     if (isTerminationEvent(event))
                         running = false;
@@ -102,10 +110,11 @@ class CurrencyPriceQueue implements AutoCloseable {
                     addEventToBuffer(event);
 
                     //TODO: get rare event to enqueue from buffer
-                    if (eventQueue.offer(event)) {
-                        logger.info(String.format("Pair %s %f offered to event queue", event.getCcyPair(), event.getRate()));
+                    eventQueue.put(event); //TODO: block insertion
+                    //if (eventQueue.offer(event)) {
+                        logger.info(String.format("Pair %s %f put to event queue", event.getCcyPair(), event.getRate()));
                         bufferedEvents.remove(event.getCcyPair());
-                    }
+                    //}
                 } while (running);
 
             } catch (InterruptedException e) {

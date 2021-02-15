@@ -12,31 +12,34 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
     private final static Logger logger = LogManager.getLogger(PriceThrottler.class);
 
     private final ConcurrentHashMap<PriceProcessor, CompletableFuture<Void>> tasks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<PriceProcessor, TaskDataBuffer> taskBuffers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PriceProcessor, CurrencyPriceQueue> taskQueues = new ConcurrentHashMap<>();
 
     @Override
     public void onPrice(String ccyPair, double rate) {
 
-        for (var subscription: taskBuffers.values()) {
-            subscription.put(ccyPair, rate);
+        for (var subscription: taskQueues.values()) {
+            subscription.offer(new TaskData(ccyPair, rate));
         }
     }
 
     @Override
     public void subscribe(PriceProcessor priceProcessor) {
-        var subscription = new TaskDataBuffer();
-        taskBuffers.put(priceProcessor, subscription);
-        tasks.put(priceProcessor, createTask(priceProcessor, subscription));
-        logger.trace(priceProcessor.toString() + " subscribed");
+        var priceQueue = new CurrencyPriceQueue();
+        taskQueues.put(priceProcessor, priceQueue);
+        tasks.put(priceProcessor, createTask(priceProcessor, priceQueue));
     }
 
     @Override
     public void  unsubscribe(PriceProcessor priceProcessor) {
-        var subscription = taskBuffers.get(priceProcessor);
-        if (subscription != null) {
-            subscription.cancel();
+        var queue = taskQueues.get(priceProcessor);
 
-            taskBuffers.remove(priceProcessor);
+        if (queue != null) {
+            taskQueues.remove(priceProcessor);
+            try {
+                queue.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             logger.info(priceProcessor.toString() + " unsubscribed");
         }
     }
@@ -46,32 +49,56 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
         for (var processor: tasks.keySet()) {
             unsubscribe(processor);
+
             var task = tasks.get(processor);
+            tasks.remove(processor);
             task.join();
         }
     }
 
-    private Runnable createJob(PriceProcessor processor, TaskDataBuffer data) {
+    private Runnable createJob(PriceProcessor processor, CurrencyPriceQueue queue) {
+        return () -> {
+            var running = true;
+            do {
+                logger.info("Job for " + processor + " awaiting");
+                var event = queue.take();
+
+                if (CurrencyPriceQueue.TERMINATION_EVENT_ID.equals(event.getCcyPair())) {
+                    running = false;
+                    logger.info(String.format("Job for processor %s finalized", processor.toString()));
+                } else {
+                    processor.onPrice(event.getCcyPair(), event.getRate());
+                    String infoMsg = String.format("Pair %s with price %f processed in processor %s", event.getCcyPair(), event.getRate(), processor.toString());
+                    logger.info(infoMsg);
+                }
+            } while(running);
+        };
+    }
+
+
+    //TODO: obsolete
+    private Runnable DEL_createJob(PriceProcessor processor, CurrencyPriceQueue data) {
         return () -> {
             var running = true;
             while (running) {
+                logger.info("Job for " + processor + " awaiting");
                 var price = data.take();
 
-                logger.info("Data received");
-
                 if (price == null) {
+                    logger.info("Job for " + processor + " exiting");
                     running = false;
                 } else {
                     processor.onPrice(price.getCcyPair(), price.getRate());
+                    String infoMsg = String.format("Pair %s with price %f processed in processor %s", price.getCcyPair(), price.getRate(), processor.toString());
+                    logger.info(infoMsg);
                 }
             }
         };
     }
 
-    private CompletableFuture<Void> createTask(PriceProcessor processor, TaskDataBuffer data) {
+    private CompletableFuture<Void> createTask(PriceProcessor processor, CurrencyPriceQueue data) {
 
         var runnable = this.createJob(processor, data);
-        var task = CompletableFuture.runAsync(runnable);
-        return task;
+        return CompletableFuture.runAsync(runnable);
     }
 }
