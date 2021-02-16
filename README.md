@@ -1,7 +1,6 @@
 # PriceThrottler
-Assumptions
-No error and exception nadling in code
 
+Requirements:
 
 You have to write a PriceThrottler class which will implement the following requirements:
 1) Implement PriceProcessor interface
@@ -17,3 +16,16 @@ once per day but you may skip some EURUSD ticking every second
 9) Slow subscribers should not impact fast subscribers
 
 In short words the purpose of PriceThrottler is to solve for slow consumers
+
+
+Assumptions
+No error and exception handling in code
+
+
+Building
+Build with Gradle
+Tested on JDK 11
+
+Points to improvement:
+1. Make Throttler composable i.e. to use in Streams
+2. Improve troughput to normalize and scaling frequency of set of currency pairs 
