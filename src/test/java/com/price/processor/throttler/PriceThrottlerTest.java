@@ -115,7 +115,7 @@ public class PriceThrottlerTest {
         prices.put("EURUSD", 8.28);
         prices.put("EURRUB", 11.0);
 
-        var listener = SimplePriceProcessor.constructWithoutDelayInProcessing();
+        var listener = new SimplePriceProcessor(40);
         var throttler = new PriceThrottler();
 
         throttler.subscribe(listener);
