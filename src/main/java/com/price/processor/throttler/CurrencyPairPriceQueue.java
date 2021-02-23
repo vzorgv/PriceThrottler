@@ -9,49 +9,14 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 final class CurrencyPairPriceQueue {
 
-    // Use map since Set doesn't allow to get contents by key
-    private final HashMap<CountedPairPrice, CountedPairPrice> reducedPairPrices = new HashMap<>();
     private final LinkedBlockingQueue<CurrencyPairPrice> pubSubQueue = new LinkedBlockingQueue<>();
+    private final ThrottlingStrategy throttlingStrategy;
 
-    /**
-     * Class implements the item to count frequency of pair prices
-     */
-    private static class CountedPairPrice {
 
-        private final CurrencyPairPrice currencyPairPrice;
-        private Integer count;
-
-        public CountedPairPrice(CurrencyPairPrice currencyPairPrice) {
-            this.currencyPairPrice = currencyPairPrice;
-            count = 0;
-        }
-
-        public Integer getCount() {
-            return count;
-        }
-
-        public void setCount(Integer count) { this.count = count; }
-
-        public CurrencyPairPrice getCurrencyPairPrice() {
-            return currencyPairPrice;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            CountedPairPrice that = (CountedPairPrice) o;
-
-            return currencyPairPrice.getCcyPair().equals(that.currencyPairPrice.getCcyPair());
-        }
-
-        @Override
-        public int hashCode() {
-            return currencyPairPrice.getCcyPair().hashCode();
-        }
+    public CurrencyPairPriceQueue(ThrottlingStrategy throttlingStrategy) {
+        this.throttlingStrategy = throttlingStrategy;
     }
+
 
     /**
      * Implements non blocking write operation
@@ -72,52 +37,22 @@ final class CurrencyPairPriceQueue {
 
         CurrencyPairPrice fetchedItem;
 
-        if (reducedPairPrices.isEmpty()) {
+        if (throttlingStrategy.isEmpty())
             fetchedItem = pubSubQueue.take(); // awaiting for the next item
-        } else {
+        else
             fetchedItem = pubSubQueue.poll();
-        }
 
         if (fetchedItem != null) {
-            addPairPriceToBuffer(fetchedItem);
+            throttlingStrategy.pushItem(fetchedItem);
             pubSubQueue.drainTo(pairPriceBatch);
 
             for (var item : pairPriceBatch) {
-                addPairPriceToBuffer(item);
+                throttlingStrategy.pushItem(item);
             }
         }
 
-        var pairPrice = getRarePairPrice();
+        fetchedItem = throttlingStrategy.popItem();
 
-        if (pairPrice != null)
-            removePairPriceFromBuffer(pairPrice);
-
-        return pairPrice;
-    }
-
-    private void addPairPriceToBuffer(CurrencyPairPrice currencyPairPrice) {
-
-        var newCountedPair = new CountedPairPrice(currencyPairPrice);
-        var existingElement = reducedPairPrices.get(newCountedPair);
-
-        if (existingElement != null) {
-            newCountedPair.setCount(existingElement.getCount() + 1);
-        }
-
-        reducedPairPrices.put(newCountedPair, newCountedPair);
-    }
-
-    private void removePairPriceFromBuffer(CurrencyPairPrice currencyPairPrice) {
-        reducedPairPrices.remove(new CountedPairPrice(currencyPairPrice));
-    }
-
-    private CurrencyPairPrice getRarePairPrice() {
-        var ret = reducedPairPrices
-                .values()
-                .stream()
-                .min(Comparator.comparing(CountedPairPrice::getCount))
-                .orElse(null);
-
-        return ret != null ? ret.getCurrencyPairPrice() : null;
+        return fetchedItem;
     }
 }

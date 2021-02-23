@@ -9,7 +9,7 @@ public class CurrencyPairPriceQueueTest {
     @Test
     public void pairPriceShouldBeOfferedAndDeliveredWithSuccess() {
         // Arrange
-        var queue = new CurrencyPairPriceQueue();
+        var queue = new CurrencyPairPriceQueue(new DeliveryFreqRankThrottling());
         var pricePair = new CurrencyPairPrice("AAA", 0.11);
 
         // Act
@@ -30,7 +30,7 @@ public class CurrencyPairPriceQueueTest {
     @Test
     public void theRarelyChangedShouldBeDeliveredFirst() {
         // Arrange
-        var queue = new CurrencyPairPriceQueue();
+        var queue = new CurrencyPairPriceQueue(new DeliveryFreqRankThrottling());
 
         final String frequentCcyPair = "EURUSD";
         final String rareCcyPair = "USDRUB";
@@ -66,7 +66,7 @@ public class CurrencyPairPriceQueueTest {
     @Test
     public void onlyLastPriceShouldBeDelivered() {
         // Arrange
-        var queue = new CurrencyPairPriceQueue();
+        var queue = new CurrencyPairPriceQueue(new DeliveryFreqRankThrottling());
 
         final String ccyPair = "EURUSD";
         final double expected = 0.18;

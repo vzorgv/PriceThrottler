@@ -26,7 +26,7 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
     @Override
     public void subscribe(PriceProcessor priceProcessor) {
-        var priceQueue = new CurrencyPairPriceQueue();
+        var priceQueue = new CurrencyPairPriceQueue(getThrottlingStrategy());
         taskQueues.put(priceProcessor, priceQueue);
         tasks.put(priceProcessor, createTask(priceProcessor, priceQueue));
         logger.info(priceProcessor.toString() + " subscribed");
@@ -94,5 +94,9 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
         var runnable = this.createJob(processor, data);
         return CompletableFuture.runAsync(runnable);
+    }
+
+    private ThrottlingStrategy getThrottlingStrategy() {
+        return new DeliveryFreqRankThrottling();
     }
 }
