@@ -6,7 +6,7 @@ package com.price.processor.throttler;
 final class CurrencyPairPrice {
 
     private final String ccyPair;
-    private double rate;
+    private final double rate;
 
     public CurrencyPairPrice(String ccyPair, double rate) {
         this.ccyPair = ccyPair;

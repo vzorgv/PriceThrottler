@@ -178,4 +178,37 @@ public class PriceThrottlerTest {
         // Assert
         assertTrue(fastListener.getProcessedPrices().size() > slowListener.getProcessedPrices().size(), "Fast listener assertion");
     }
+
+    @Test
+    public void run200Subscribers() {
+
+        PriceThrottler throttler = new PriceThrottler();
+
+        for (int i = 0; i < 200; i++) {
+            var listener = SimplePriceProcessor.constructWithoutDelayInProcessing();
+            throttler.subscribe(listener);
+        }
+
+        for (int i = 0 ; i < 1_000; i++) {
+
+            throttler.onPrice("EURUSD", i);
+            throttler.onPrice("EURUSD", i + 1);
+            throttler.onPrice("EURUSD", i + 2);
+
+            throttler.onPrice("EURRUB", i + 3);
+
+            throttler.onPrice("EURUSD", i + 4);
+            throttler.onPrice("EURUSD", i + 5);
+            throttler.onPrice("EURUSD", i + 6);
+
+            throttler.onPrice("EURRUB", i + 7);
+        }
+
+        try {
+            Thread.sleep(THREAD_POOL_WARMUP);
+            throttler.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
