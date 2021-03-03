@@ -6,12 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.HashMap;
 
-public class PriceThrottlerTest {
 
-    private final static long THREAD_POOL_WARMUP = 100;
+//@Timeout(value = 5)
+public class PriceThrottlerTest {
 
     @Test
     @DisplayName("When price come then distributed to the listener")
@@ -29,15 +30,13 @@ public class PriceThrottlerTest {
         // Act
         throttler.onPrice("EURUSD", 6.28);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        while (listener.getProcessedPrices().isEmpty());
+
+        double actual = listener.getProcessedPrices().get("EURUSD");
+        throttler.close();
 
         // Assert
-        assertEquals(listener.getProcessedPrices(), prices);
+        assertEquals(6.28, actual);
     }
 
     @Test
@@ -63,16 +62,20 @@ public class PriceThrottlerTest {
             throttler.onPrice(price.getKey(), price.getValue());
         }
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        while (firstListener.getProcessedPrices().size() < 3
+                || secondListener.getProcessedPrices().size() < 3) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
+        throttler.close();
+
         // Assert
-        assertEquals(firstListener.getProcessedPrices(), prices, "First listener assertion");
-        assertEquals(secondListener.getProcessedPrices(), prices, "Second listener assertion");
+        assertEquals(prices, firstListener.getProcessedPrices(), "First listener assertion");
+        assertEquals(prices, secondListener.getProcessedPrices(), "Second listener assertion");
     }
 
 
@@ -84,7 +87,7 @@ public class PriceThrottlerTest {
 
         prices.put("EURUSD", 8.28);
 
-        var slowListener = new SimplePriceProcessor(10);
+        var slowListener = new SimplePriceProcessor(5);
         var throttler = new PriceThrottler();
 
         throttler.subscribe(slowListener);
@@ -94,15 +97,14 @@ public class PriceThrottlerTest {
         throttler.onPrice("EURUSD", 7.28);
         throttler.onPrice("EURUSD", 8.28);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        while (slowListener.getProcessedPrices().isEmpty());
+
+        throttler.close();
+
+        double actual = slowListener.getProcessedPrices().get("EURUSD");
 
         // Assert
-        assertEquals(slowListener.getProcessedPrices(), prices);
+        assertEquals(8.28d, actual);
     }
 
     @Test
@@ -115,7 +117,7 @@ public class PriceThrottlerTest {
         prices.put("EURUSD", 8.28);
         prices.put("EURRUB", 11.0);
 
-        var listener = new SimplePriceProcessor(40);
+        var listener = new SimplePriceProcessor(10);
         var throttler = new PriceThrottler();
 
         throttler.subscribe(listener);
@@ -133,15 +135,16 @@ public class PriceThrottlerTest {
 
         throttler.onPrice("EURRUB", 11.0);
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        while (listener.getProcessedPrices().size() < 2) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         // Assert
-        assertEquals(listener.getProcessedPrices(), prices);
+        assertEquals(prices, listener.getProcessedPrices());
     }
 
     @Test
@@ -168,19 +171,16 @@ public class PriceThrottlerTest {
             throttler.onPrice(price.getKey(), price.getValue());
         }
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        while (fastListener.getProcessedPrices().size() < 3);
+
+        throttler.close();
 
         // Assert
         assertTrue(fastListener.getProcessedPrices().size() > slowListener.getProcessedPrices().size(), "Fast listener assertion");
     }
 
     @Test
-    public void run200Subscribers() {
+    public void whenManySubscribersRanThrottlerDoesntHang() {
 
         PriceThrottler throttler = new PriceThrottler();
 
@@ -204,11 +204,6 @@ public class PriceThrottlerTest {
             throttler.onPrice("EURRUB", i + 7);
         }
 
-        try {
-            Thread.sleep(THREAD_POOL_WARMUP);
-            throttler.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        throttler.close();
     }
 }

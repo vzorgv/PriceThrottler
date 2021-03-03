@@ -12,7 +12,7 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
     private final ConcurrentHashMap<PriceProcessor, CompletableFuture<Void>> tasks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<PriceProcessor, CurrencyPairPriceQueue> taskQueues = new ConcurrentHashMap<>();
-    private final ExecutorService taskPool = Executors.newCachedThreadPool();
+    private final ExecutorService taskPool = Executors.newWorkStealingPool();
 
     @Override
     public void onPrice(String ccyPair, double rate) {
@@ -45,24 +45,28 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
             tasks.remove(processor);
         }
 
-        taskPool.shutdown();
+        taskPool.shutdownNow();
     }
 
     private Runnable createJob(PriceProcessor processor, CurrencyPairPriceQueue queue) {
         return () -> {
 
-            while(true) {
-                CurrencyPairPrice pairPrice = null;
+            var isRunning = true;
+
+            while(isRunning) {
+                CurrencyPairPrice pairPrice;
                 try {
                     pairPrice = queue.take();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
 
-                if (pairPrice != null) {
-                    processor.onPrice(pairPrice.getCcyPair(), pairPrice.getRate());
-                    String infoMsg = String.format("Pair %s with price %f processed in processor %s", pairPrice.getCcyPair(), pairPrice.getRate(), processor);
-                    logger.info(infoMsg);
+                    if (pairPrice != null) {
+                        processor.onPrice(pairPrice.getCcyPair(), pairPrice.getRate());
+                        String infoMsg = String.format("Pair %s with price %f processed in processor %s", pairPrice.getCcyPair(), pairPrice.getRate(), processor);
+                        logger.info(infoMsg);
+                    }
+
+                } catch (InterruptedException e) {
+                    //logger.info("Task finalized");
+                    isRunning = false;
                 }
             }
         };

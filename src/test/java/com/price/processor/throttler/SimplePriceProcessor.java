@@ -1,9 +1,12 @@
 package com.price.processor.throttler;
 
 import com.price.processor.PriceProcessor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
@@ -12,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 final class SimplePriceProcessor implements PriceProcessor {
 
     private final long sleepInMilli;
+
+    private final AtomicLong onPriceCounter = new AtomicLong(0L);
 
     private final ConcurrentHashMap<String, Double> processedPrices = new ConcurrentHashMap<>();
 
@@ -36,7 +41,7 @@ final class SimplePriceProcessor implements PriceProcessor {
             try {
                 Thread.sleep(sleepInMilli);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                // left empty on purpose
             }
         }
 
