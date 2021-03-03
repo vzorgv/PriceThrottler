@@ -17,8 +17,11 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
     @Override
     public void onPrice(String ccyPair, double rate) {
 
-        for (var queue: taskQueues.values()) {
+        for (var entry: taskQueues.entrySet()) {
+            var queue = entry.getValue();
+            var processor = entry.getKey();
             queue.offer(new CurrencyPairPrice(ccyPair, rate));
+            scheduleTask(processor);
         }
     }
 
@@ -26,7 +29,6 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
     public void subscribe(PriceProcessor priceProcessor) {
         var priceQueue = new CurrencyPairPriceQueue(getThrottlingStrategy());
         taskQueues.put(priceProcessor, priceQueue);
-        tasks.put(priceProcessor, createTask(priceProcessor, priceQueue));
         logger.info(priceProcessor.toString() + " subscribed");
     }
 
@@ -45,37 +47,43 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
             tasks.remove(processor);
         }
 
-        taskPool.shutdownNow();
+        taskPool.shutdown();
     }
 
-    private Runnable createJob(PriceProcessor processor, CurrencyPairPriceQueue queue) {
+    private void scheduleTask(PriceProcessor processor) {
+
+        var task = tasks.get(processor);
+
+        if (task == null || task.isDone()) {
+            var queue = taskQueues.get(processor);
+            var runnableTask = createTask(processor, queue);
+            task = CompletableFuture.runAsync(runnableTask, taskPool);
+        }
+
+        tasks.put(processor, task);
+    }
+
+    private Runnable createTask(PriceProcessor processor, CurrencyPairPriceQueue queue) {
         return () -> {
 
             var isRunning = true;
 
-            while(isRunning) {
-                CurrencyPairPrice pairPrice;
-                try {
-                    pairPrice = queue.take();
+            do {
+                    CurrencyPairPrice pairPrice;
+                    try {
+                            pairPrice = queue.poll();
 
-                    if (pairPrice != null) {
-                        processor.onPrice(pairPrice.getCcyPair(), pairPrice.getRate());
-                        String infoMsg = String.format("Pair %s with price %f processed in processor %s", pairPrice.getCcyPair(), pairPrice.getRate(), processor);
-                        logger.info(infoMsg);
+                            if (pairPrice == null) {
+                                isRunning = false;
+                            } else {
+                                processor.onPrice(pairPrice.getCcyPair(), pairPrice.getRate());
+                            }
+                    } catch (InterruptedException e) {
+                        logger.info("Task interrupted");
+                        isRunning = false;
                     }
-
-                } catch (InterruptedException e) {
-                    //logger.info("Task finalized");
-                    isRunning = false;
-                }
-            }
+            } while(isRunning);
         };
-    }
-
-    private CompletableFuture<Void> createTask(PriceProcessor processor, CurrencyPairPriceQueue data) {
-
-        var runnable = this.createJob(processor, data);
-        return CompletableFuture.runAsync(runnable, taskPool);
     }
 
     private ThrottlingStrategy getThrottlingStrategy() {

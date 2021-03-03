@@ -16,8 +16,6 @@ final class SimplePriceProcessor implements PriceProcessor {
 
     private final long sleepInMilli;
 
-    private final AtomicLong onPriceCounter = new AtomicLong(0L);
-
     private final ConcurrentHashMap<String, Double> processedPrices = new ConcurrentHashMap<>();
 
     /**

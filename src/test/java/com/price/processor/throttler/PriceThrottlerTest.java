@@ -6,12 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import java.util.HashMap;
 
 
-//@Timeout(value = 5)
 public class PriceThrottlerTest {
 
     @Test
@@ -183,27 +181,32 @@ public class PriceThrottlerTest {
     public void whenManySubscribersRanThrottlerDoesntHang() {
 
         PriceThrottler throttler = new PriceThrottler();
+        var prices = new HashMap<String, Double>();
 
-        for (int i = 0; i < 200; i++) {
+        prices.put("EURUSD", 1000d);
+        prices.put("EURRUB", 1000d);
+        prices.put("USDRUB", 1000d);
+
+        final int LISTENERS_COUNT = 200;
+
+        SimplePriceProcessor[] listeners = new SimplePriceProcessor[LISTENERS_COUNT];
+
+        for (int i = 0; i < LISTENERS_COUNT; i++) {
             var listener = SimplePriceProcessor.constructWithoutDelayInProcessing();
             throttler.subscribe(listener);
+            listeners[i] = listener;
         }
 
-        for (int i = 0 ; i < 1_000; i++) {
-
+        for (int i = 1 ; i <= 1_000; i++) {
             throttler.onPrice("EURUSD", i);
-            throttler.onPrice("EURUSD", i + 1);
-            throttler.onPrice("EURUSD", i + 2);
-
-            throttler.onPrice("EURRUB", i + 3);
-
-            throttler.onPrice("EURUSD", i + 4);
-            throttler.onPrice("EURUSD", i + 5);
-            throttler.onPrice("EURUSD", i + 6);
-
-            throttler.onPrice("EURRUB", i + 7);
+            throttler.onPrice("EURRUB", i);
+            throttler.onPrice("USDRUB", i);
         }
 
         throttler.close();
+
+        for (var listener: listeners) {
+         assertEquals(prices, listener.getProcessedPrices());
+        }
     }
 }

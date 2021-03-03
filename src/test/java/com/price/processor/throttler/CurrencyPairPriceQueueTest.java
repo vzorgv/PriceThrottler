@@ -17,7 +17,7 @@ public class CurrencyPairPriceQueueTest {
         CurrencyPairPrice actualMessage = null;
 
         try {
-            actualMessage = queue.take();
+            actualMessage = queue.poll();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -52,7 +52,7 @@ public class CurrencyPairPriceQueueTest {
         CurrencyPairPrice actual = null;
         // Act
         try {
-            actual = queue.take();
+            actual = queue.poll();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -84,7 +84,7 @@ public class CurrencyPairPriceQueueTest {
         CurrencyPairPrice actual = null;
         // Act
         try {
-            actual = queue.take();
+            actual = queue.poll();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

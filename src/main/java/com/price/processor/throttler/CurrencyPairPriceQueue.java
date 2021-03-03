@@ -32,7 +32,7 @@ final class CurrencyPairPriceQueue {
      * @return <c>CurrencyPairPrice</c> from producer
      * @throws InterruptedException the Interrupted exception
      */
-    public CurrencyPairPrice take() throws InterruptedException {
+    public CurrencyPairPrice del_take() throws InterruptedException {
         LinkedList<CurrencyPairPrice> pairPriceBatch = new LinkedList<>();
 
         CurrencyPairPrice fetchedItem;
@@ -41,6 +41,32 @@ final class CurrencyPairPriceQueue {
             fetchedItem = pubSubQueue.take(); // awaiting for the next item
         else
             fetchedItem = pubSubQueue.poll();
+
+        if (fetchedItem != null) {
+            throttlingStrategy.pushItem(fetchedItem);
+            pubSubQueue.drainTo(pairPriceBatch);
+
+            for (var item : pairPriceBatch) {
+                throttlingStrategy.pushItem(item);
+            }
+        }
+
+        fetchedItem = throttlingStrategy.popItem();
+
+        return fetchedItem;
+    }
+
+    /**
+     * Implements non blocking read.
+     * @return <c>CurrencyPairPrice</c> from producer
+     * @throws InterruptedException the Interrupted exception
+     */
+    public CurrencyPairPrice poll() throws InterruptedException {
+        LinkedList<CurrencyPairPrice> pairPriceBatch = new LinkedList<>();
+
+        CurrencyPairPrice fetchedItem;
+
+        fetchedItem = pubSubQueue.poll();
 
         if (fetchedItem != null) {
             throttlingStrategy.pushItem(fetchedItem);
