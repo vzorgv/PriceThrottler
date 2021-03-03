@@ -12,7 +12,7 @@ public class PriceThrottler implements PriceProcessor, AutoCloseable {
 
     private final ConcurrentHashMap<PriceProcessor, CompletableFuture<Void>> tasks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<PriceProcessor, CurrencyPairPriceQueue> taskQueues = new ConcurrentHashMap<>();
-    private final ExecutorService taskPool = Executors.newWorkStealingPool();
+    private final ExecutorService taskPool = Executors.newCachedThreadPool();
 
     @Override
     public void onPrice(String ccyPair, double rate) {
